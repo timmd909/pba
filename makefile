@@ -1,17 +1,6 @@
 #To use AVX instead of SSE, you need to add -DCPUPBA_USE_AVX to CFLAGS
 #################################################################
 
-CUDA_INSTALL_PATH = /usr/local/cuda
-CUDA_LIB_PATH = $(CUDA_INSTALL_PATH)/lib64
-ifdef CUDA_BIN_PATH
-	NVCC = $(CUDA_BIN_PATH)/nvcc
-else
-	NVCC = $(CUDA_INSTALL_PATH)/bin/nvcc
-endif
-ifndef CUDA_INC_PATH
-	CUDA_INC_PATH = $(CUDA_INSTALL_PATH)/include
-endif
-#################################################################
 
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
@@ -23,17 +12,16 @@ SHELL = /bin/sh
 BIN_DIR = ./bin
 SRC_PBA = ./src/pba
 SRC_DRIVER = ./src/driver
-OUT_PBA = ./bin/out
+OUT_PBA = ./bin/out_no_gpu
 
 CC = g++
-CFLAGS =  -I$(CUDA_INC_PATH) -L$(CUDA_LIB_PATH) -fPIC -L/usr/lib64 -L/usr/lib -L$(BIN_DIR) -O2 -Wall -Wno-deprecated -pthread  -march=native -mfpmath=sse -fpermissive
-NVCC_FLAGS = -I$(CUDA_INC_PATH) -O2 -Xcompiler -fPIC
+CFLAGS =  -DPBA_NO_GPU -fPIC -L/usr/lib64 -L/usr/lib -L$(BIN_DIR) -O2 -Wall -Wno-deprecated -pthread -march=native -mfpmath=sse -fpermissive
 
 
 # siftgpu header files
-_HEADER_PBA = pba.h ConfigBA.h CuTexImage.h DataInterface.h ProgramCU.h SparseBundleCU.h
+_HEADER_PBA = pba.h ConfigBA.h CuTexImage.h DataInterface.h SparseBundleCU.h
 _HEADER_PBA_LIB = pba.h 
-_OBJ_PBA = pba.o CuTexImage.o ConfigBA.o SparseBundleCU.o SparseBundleCPU.o
+_OBJ_PBA = pba.o ConfigBA.o SparseBundleCPU.o
 
 all: makepath pba driver 
  
@@ -44,20 +32,16 @@ DEPS_PBA = $(patsubst %, $(SRC_PBA)/%, $(_HEADER_PBA))
 $(OUT_PBA)/%.o: $(SRC_PBA)/%.cpp $(DEPS_PBA) 
 	$(CC) -o $@ $< $(CFLAGS) -c 
 
-#build rule for CUDA 
-$(OUT_PBA)/ProgramCU.o: $(SRC_PBA)/ProgramCU.cu $(DEPS_PBA)
-	$(NVCC) $(NVCC_FLAGS) -o $@ $< -c
-_OBJ_PBA += ProgramCU.o
 
 OBJ_PBA  = $(patsubst %,$(OUT_PBA)/%,$(_OBJ_PBA))
-LIBS_DRIVER = $(BIN_DIR)/libpba.a $(LIBS_PBA) 
+LIBS_DRIVER = $(BIN_DIR)/libpba_no_gpu.a $(LIBS_PBA) 
 
 pba: makepath $(OBJ_PBA)
-	ar rcs $(BIN_DIR)/libpba.a $(OBJ_PBA)
-	$(CC) -o $(BIN_DIR)/libpba.so $(OBJ_PBA) $(LIBS_PBA) $(CFLAGS) -lcudart -shared -fPIC
+	ar rcs $(BIN_DIR)/libpba_no_gpu.a $(OBJ_PBA)
+	$(CC) -o $(BIN_DIR)/libpba_no_gpu.so $(OBJ_PBA) $(LIBS_PBA) $(CFLAGS) -shared -fPIC
  
 driver: makepath 
-	$(CC) -o $(BIN_DIR)/driver $(SRC_DRIVER)/driver.cpp -lpba -lcudart $(CFLAGS) 
+	$(CC) -o $(BIN_DIR)/driver_no_gpu $(SRC_DRIVER)/driver.cpp -lpba_no_gpu  $(CFLAGS) 
 	
 makepath:
 	mkdir -p $(OUT_PBA)
@@ -65,8 +49,8 @@ makepath:
  
 clean:
 	rm -f $(OUT_PBA)/*.o
-	rm -f $(BIN_DIR)/libpba.a
-	rm -f $(BIN_DIR)/libpba.so
-	rm -f $(BIN_DIR)/driver
+	rm -f $(BIN_DIR)/libpba_no_gpu.a
+	rm -f $(BIN_DIR)/libpba_no_gpu.so
+	rm -f $(BIN_DIR)/driver_no_gpu
 
 
